@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Check, Cpu, Eye, GitCompare, Plus, ShoppingCart, AlertTriangle } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Check, Cpu, Eye, GitCompare, Heart, Plus, ShoppingCart, AlertTriangle } from 'lucide-react';
 import { Locale, Product } from '../lib/commerce/types';
 import { formatCurrency, formatStockLabel, TRANSLATIONS } from '../lib/i18n/translations';
 
@@ -7,9 +7,11 @@ interface ProductCardProps {
   product: Product;
   locale: Locale;
   isCompared: boolean;
+  isWishlisted?: boolean;
   onSelectProduct: (product: Product) => void;
   onAddToCart: (product: Product) => void;
   onToggleCompare: (product: Product) => void;
+  onToggleWishlist?: (product: Product) => void;
   onUseInBuilder: (product: Product) => void;
 }
 
@@ -17,12 +19,25 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   product,
   locale,
   isCompared,
+  isWishlisted = false,
   onSelectProduct,
   onAddToCart,
   onToggleCompare,
+  onToggleWishlist,
   onUseInBuilder,
 }) => {
   const [imgError, setImgError] = useState(false);
+  const [justAdded, setJustAdded] = useState(false);
+  const animTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (animTimerRef.current) {
+        window.clearTimeout(animTimerRef.current);
+      }
+    };
+  }, []);
+
   const t = TRANSLATIONS[locale];
   const displayName = locale === 'fa' ? product.nameFa || product.name : product.name;
   const categoryName =
@@ -31,6 +46,22 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       : product.categories[0]?.name || 'Hardware';
 
   const isOutOfStock = product.stockStatus === 'OUT_OF_STOCK';
+
+  const handleHeartClick = () => {
+    if (!onToggleWishlist) return;
+    if (!isWishlisted) {
+      setJustAdded(true);
+      if (animTimerRef.current) {
+        window.clearTimeout(animTimerRef.current);
+      }
+      animTimerRef.current = window.setTimeout(() => {
+        setJustAdded(false);
+      }, 650);
+    } else {
+      setJustAdded(false);
+    }
+    onToggleWishlist(product);
+  };
 
   return (
     <article
@@ -62,12 +93,43 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </button>
         )}
 
+        {/* Wishlist Heart Toggle Button */}
+        {onToggleWishlist && (
+          <button
+            type="button"
+            onClick={handleHeartClick}
+            data-testid={`wishlist-toggle-${product.slug}`}
+            data-animating={justAdded ? 'true' : 'false'}
+            aria-label={`${isWishlisted ? t.wishlistRemove : t.wishlistAdd} ${displayName}`}
+            aria-pressed={isWishlisted}
+            title={isWishlisted ? t.wishlistRemove : t.wishlistAdd}
+            className={`absolute top-3 start-3 p-2 rounded-lg transition-all duration-200 cursor-pointer ${
+              isWishlisted
+                ? 'bg-rose-950/90 border border-rose-500/70 text-rose-400 hover:bg-rose-900/90 shadow-sm shadow-rose-950/50'
+                : 'bg-slate-950/80 text-slate-200 hover:text-rose-400 hover:bg-slate-900'
+            } ${justAdded ? 'ring-2 ring-rose-400/80 scale-105' : ''}`}
+          >
+            {justAdded && (
+              <span
+                aria-hidden="true"
+                data-testid={`wishlist-burst-${product.slug}`}
+                className="pointer-events-none absolute inset-0 rounded-lg bg-rose-500/35 animate-ping"
+              />
+            )}
+            <Heart
+              className={`relative z-10 w-4 h-4 transition-transform duration-150 ${
+                isWishlisted ? 'fill-rose-500 text-rose-500 scale-110' : ''
+              } ${justAdded ? 'animate-wishlist-heart' : ''}`}
+            />
+          </button>
+        )}
+
         {/* Quick Inspect Action */}
         <button
           type="button"
           onClick={() => onSelectProduct(product)}
           aria-label={locale === 'fa' ? `مشاهده جزئیات ${displayName}` : `Inspect ${displayName}`}
-          className="absolute top-3 end-3 p-2 rounded-lg bg-slate-950/80 text-slate-200 hover:text-cyan-400 hover:bg-slate-900 transition-colors"
+          className="absolute top-3 end-3 p-2 rounded-lg bg-slate-950/80 text-slate-200 hover:text-cyan-400 hover:bg-slate-900 transition-colors cursor-pointer"
         >
           <Eye className="w-4 h-4" />
         </button>

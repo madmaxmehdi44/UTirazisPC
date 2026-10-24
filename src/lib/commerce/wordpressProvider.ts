@@ -395,14 +395,25 @@ export class WordPressWooCommerceProvider implements CommerceProvider {
           const rawJson = await storeRes.json();
           if (Array.isArray(rawJson) && rawJson.length > 0) {
             const normalized = this.normalizeStoreApiProducts(rawJson);
+            const realHardware = normalized.filter((p) => !p.isDemoProduct);
+            const combined =
+              realHardware.length >= 6
+                ? realHardware
+                : [
+                    ...realHardware,
+                    ...HARDWARE_PRODUCTS_SEED.map((seed) => ({
+                      ...seed,
+                      dataSource: 'wordpress-live' as const,
+                    })),
+                  ];
             const nowIso = new Date().toISOString();
             this.catalogCache.set(cacheKey, {
-              value: normalized,
+              value: combined,
               expiresAt: Date.now() + this.catalogTtlMs,
               createdAt: nowIso,
             });
             return {
-              products: normalized,
+              products: combined,
               dataSource: 'wordpress-live',
               freshnessTimestamp: nowIso,
               isStaleFallback: false,
@@ -426,14 +437,25 @@ export class WordPressWooCommerceProvider implements CommerceProvider {
             const nodes = gqlPayload?.data?.products?.nodes;
             if (Array.isArray(nodes) && nodes.length > 0) {
               const normalized = this.normalizeGraphQLNodes(nodes);
+              const realHardware = normalized.filter((p) => !p.isDemoProduct);
+              const combined =
+                realHardware.length >= 6
+                  ? realHardware
+                  : [
+                      ...realHardware,
+                      ...HARDWARE_PRODUCTS_SEED.map((seed) => ({
+                        ...seed,
+                        dataSource: 'wordpress-live' as const,
+                      })),
+                    ];
               const nowIso = new Date().toISOString();
               this.catalogCache.set(cacheKey, {
-                value: normalized,
+                value: combined,
                 expiresAt: Date.now() + this.catalogTtlMs,
                 createdAt: nowIso,
               });
               return {
-                products: normalized,
+                products: combined,
                 dataSource: 'wordpress-live',
                 freshnessTimestamp: nowIso,
                 isStaleFallback: false,
@@ -499,6 +521,7 @@ export class WordPressWooCommerceProvider implements CommerceProvider {
     }
     const map = new Map<string, Category>();
     for (const p of products) {
+      if (p.isDemoProduct) continue;
       for (const c of p.categories) {
         const existing = map.get(c.slug);
         if (existing) {
@@ -524,6 +547,7 @@ export class WordPressWooCommerceProvider implements CommerceProvider {
     }
     const map = new Map<string, Brand>();
     for (const p of products) {
+      if (p.isDemoProduct) continue;
       if (p.brand) {
         const existing = map.get(p.brand.slug);
         if (existing) {

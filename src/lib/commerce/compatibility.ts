@@ -23,15 +23,26 @@ const DEMO_PRODUCT_KEYWORDS = [
   'single',
   'logo collection',
   'wordpress pennant',
+  'clothing',
+  'decor',
 ];
 
 /**
  * Detects whether a returned WooCommerce product record is a generic sample/demo item
- * (such as T-shirts, hoodies, sunglasses, albums) so it is never silently presented
- * as real computer hardware.
+ * (such as T-shirts, hoodies, sunglasses, albums, or unconfigured "Product" / "product-21" placeholders)
+ * so it is never silently presented as real computer hardware.
  */
 export function isWooCommerceDemoProduct(name: string, slug: string, categories: string[] = []): boolean {
-  const haystack = `${name} ${slug} ${categories.join(' ')}`.toLowerCase();
+  const cleanName = name.trim().toLowerCase();
+  const cleanSlug = slug.trim().toLowerCase();
+  if (
+    cleanName === 'product' ||
+    cleanName === 'unnamed product' ||
+    /^product(-\d+)?$/.test(cleanSlug)
+  ) {
+    return true;
+  }
+  const haystack = `${cleanName} ${cleanSlug} ${categories.join(' ')}`.toLowerCase();
   return DEMO_PRODUCT_KEYWORDS.some((kw) => haystack.includes(kw));
 }
 

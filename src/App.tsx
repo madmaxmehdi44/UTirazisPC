@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Cpu,
   Globe,
+  Heart,
   LogOut,
   Search,
   Settings,
@@ -40,6 +41,7 @@ import { formatCurrency, TRANSLATIONS } from './lib/i18n/translations';
 import { ProductCard } from './components/ProductCard';
 import { ProductDetailModal } from './components/ProductDetailModal';
 import { CartDrawerAndCheckout } from './components/CartDrawerAndCheckout';
+import { WishlistDrawer } from './components/WishlistDrawer';
 import { PcBuilderWorkbench } from './components/PcBuilderWorkbench';
 import { ScienceFoldingWorkbench } from './components/ScienceFoldingWorkbench';
 import { AiHardwareStudio } from './components/AiHardwareStudio';
@@ -162,12 +164,83 @@ export default function App() {
     updatedAt: new Date().toISOString(),
   });
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
+  const [isWishlistOpen, setIsWishlistOpen] = useState<boolean>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const sharedParam = params.get('wishlist');
+      return Boolean(sharedParam && sharedParam.trim().length > 0);
+    } catch {
+      return false;
+    }
+  });
+  const [wishlistProducts, setWishlistProducts] = useState<Product[]>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const sharedParam = params.get('wishlist');
+      if (sharedParam && sharedParam.trim().length > 0) {
+        const sharedSlugs = sharedParam
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+        const matched = HARDWARE_PRODUCTS_SEED.filter((p) => sharedSlugs.includes(p.slug));
+        if (matched.length > 0) {
+          return matched;
+        }
+      }
+
+      const saved = localStorage.getItem('tirazis_wishlist_slugs');
+      if (saved) {
+        const slugs: string[] = JSON.parse(saved);
+        if (Array.isArray(slugs)) {
+          return HARDWARE_PRODUCTS_SEED.filter((p) => slugs.includes(p.slug));
+        }
+      }
+    } catch {
+      // Ignore storage read errors
+    }
+    return [];
+  });
+  const [wishlistNotes, setWishlistNotes] = useState<Record<string, string>>(() => {
+    try {
+      const savedNotes = localStorage.getItem('tirazis_wishlist_notes');
+      if (savedNotes) {
+        const parsed = JSON.parse(savedNotes);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          return parsed;
+        }
+      }
+    } catch {
+      // Ignore storage read errors
+    }
+    return {};
+  });
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [wishlistAddedAnim, setWishlistAddedAnim] = useState<boolean>(false);
+  const wishlistAnimTimerRef = useRef<number | null>(null);
   const cartTokenRef = useRef<string>('trz-session-client-1');
 
   // Firebase Auth & Saved Builds State
   const [user, setUser] = useState<User | null>(null);
   const [savedBuilds, setSavedBuilds] = useState<SavedPcBuildDoc[]>([]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        'tirazis_wishlist_slugs',
+        JSON.stringify(wishlistProducts.map((p) => p.slug))
+      );
+    } catch {
+      // Ignore storage write errors
+    }
+  }, [wishlistProducts]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('tirazis_wishlist_notes', JSON.stringify(wishlistNotes));
+    } catch {
+      // Ignore storage write errors
+    }
+  }, [wishlistNotes]);
 
   const t = TRANSLATIONS[locale];
 
@@ -503,6 +576,74 @@ export default function App() {
     });
   };
 
+  const handleToggleWishlist = (product: Product) => {
+    const exists = wishlistProducts.some((p) => p.slug === product.slug);
+    if (exists) {
+      setWishlistProducts((prev) => prev.filter((p) => p.slug !== product.slug));
+      setWishlistAddedAnim(false);
+      showToast(
+        locale === 'fa'
+          ? `${product.nameFa || product.name} از لیست علاقه‌مندی‌ها حذف شد.`
+          : `Removed ${product.name} from wishlist.`
+      );
+    } else {
+      setWishlistProducts((prev) => [...prev, product]);
+      setWishlistAddedAnim(true);
+      if (wishlistAnimTimerRef.current) {
+        window.clearTimeout(wishlistAnimTimerRef.current);
+      }
+      wishlistAnimTimerRef.current = window.setTimeout(() => {
+        setWishlistAddedAnim(false);
+      }, 700);
+      showToast(
+        locale === 'fa'
+          ? `${product.nameFa || product.name} به لیست علاقه‌مندی‌ها اضافه شد.`
+          : `Saved ${product.name} to wishlist.`
+      );
+    }
+  };
+
+  const handleUpdateWishlistNote = (slug: string, note: string) => {
+    setWishlistNotes((prev) => {
+      const next = { ...prev };
+      if (note) {
+        next[slug] = note;
+      } else {
+        delete next[slug];
+      }
+      try {
+        localStorage.setItem('tirazis_wishlist_notes', JSON.stringify(next));
+      } catch {
+        // Ignore storage write errors
+      }
+      return next;
+    });
+  };
+
+  const handleClearWishlist = () => {
+    setWishlistProducts([]);
+    setWishlistNotes({});
+    try {
+      localStorage.removeItem('tirazis_wishlist_notes');
+    } catch {
+      // Ignore storage errors
+    }
+    showToast(
+      locale === 'fa'
+        ? 'لیست علاقه‌مندی‌ها پاک شد.'
+        : 'Cleared saved wishlist.'
+    );
+  };
+
+  const handleAddAllWishlistToCart = async () => {
+    const inStockItems = wishlistProducts.filter((p) => p.stockStatus === 'IN_STOCK');
+    for (const item of inStockItems) {
+      await handleAddToCart(item, 1);
+    }
+    setIsWishlistOpen(false);
+    setIsCartOpen(true);
+  };
+
   const handleUseInBuilder = (product: Product) => {
     const slot = product.hardwareSpecs.slot;
     if (slot) {
@@ -698,6 +839,47 @@ export default function App() {
             >
               <Settings className="w-3.5 h-3.5" />
               <span>{t.navAdmin}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsWishlistOpen(true)}
+              data-testid="open-wishlist-button"
+              data-animating={wishlistAddedAnim ? 'true' : 'false'}
+              aria-label={`${t.wishlistTitle} (${wishlistProducts.length})`}
+              className={`relative px-2.5 py-1 rounded bg-[#0b0f17] border transition-all duration-200 text-slate-200 font-medium inline-flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
+                wishlistAddedAnim
+                  ? 'border-rose-400 bg-rose-950/40 ring-2 ring-rose-500/40'
+                  : wishlistProducts.length > 0
+                    ? 'border-rose-500/50 hover:border-rose-400'
+                    : 'border-slate-700 hover:border-rose-400'
+              }`}
+            >
+              <span className="relative inline-flex items-center justify-center">
+                {wishlistAddedAnim && (
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute -inset-1 rounded-full bg-rose-500/40 animate-ping"
+                  />
+                )}
+                <Heart
+                  className={`relative z-10 w-3.5 h-3.5 transition-transform duration-200 ${
+                    wishlistProducts.length > 0 ? 'text-rose-500 fill-rose-500' : 'text-rose-400'
+                  } ${wishlistAddedAnim ? 'animate-wishlist-heart' : ''}`}
+                />
+              </span>
+              <span>{t.wishlistTitle}</span>
+              <span
+                data-testid="wishlist-badge"
+                aria-live="polite"
+                className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-mono font-bold tabular-nums transition-colors ${
+                  wishlistProducts.length > 0
+                    ? 'bg-rose-500 text-white shadow-xs shadow-rose-950'
+                    : 'bg-slate-800 text-slate-400'
+                } ${wishlistAddedAnim ? 'animate-wishlist-badge' : ''}`}
+              >
+                {wishlistProducts.length}
+              </span>
             </button>
           </div>
 
@@ -988,9 +1170,11 @@ export default function App() {
                     product={product}
                     locale={locale}
                     isCompared={comparedProducts.some((p) => p.slug === product.slug)}
+                    isWishlisted={wishlistProducts.some((p) => p.slug === product.slug)}
                     onSelectProduct={handleInspectProduct}
                     onAddToCart={(p) => handleAddToCart(p, 1)}
                     onToggleCompare={handleToggleCompare}
+                    onToggleWishlist={handleToggleWishlist}
                     onUseInBuilder={handleUseInBuilder}
                   />
                 ))}
@@ -1236,9 +1420,11 @@ export default function App() {
                     product={product}
                     locale={locale}
                     isCompared={comparedProducts.some((p) => p.slug === product.slug)}
+                    isWishlisted={wishlistProducts.some((p) => p.slug === product.slug)}
                     onSelectProduct={handleInspectProduct}
                     onAddToCart={(p) => handleAddToCart(p, 1)}
                     onToggleCompare={handleToggleCompare}
+                    onToggleWishlist={handleToggleWishlist}
                     onUseInBuilder={handleUseInBuilder}
                   />
                 ))}
@@ -1414,6 +1600,30 @@ export default function App() {
         onApplyCoupon={handleApplyCoupon}
         onRevalidateCheckout={handleRevalidateCheckout}
         onSubmitOrder={handleSubmitOrder}
+      />
+
+      <WishlistDrawer
+        isOpen={isWishlistOpen}
+        items={wishlistProducts}
+        locale={locale}
+        notes={wishlistNotes}
+        onUpdateNote={handleUpdateWishlistNote}
+        onClose={() => setIsWishlistOpen(false)}
+        onRemoveItem={handleToggleWishlist}
+        onClearAll={handleClearWishlist}
+        onAddToCart={(p) => handleAddToCart(p, 1)}
+        onAddAllToCart={handleAddAllWishlistToCart}
+        onSelectProduct={handleInspectProduct}
+        onUseInBuilder={handleUseInBuilder}
+        onShareWishlist={(shareUrl) => {
+          try {
+            const parsed = new URL(shareUrl);
+            window.history.replaceState({}, '', `${parsed.pathname}${parsed.search}`);
+          } catch {
+            // Ignore URL history update errors
+          }
+          showToast(t.wishlistShareCopied);
+        }}
       />
     </div>
   );
