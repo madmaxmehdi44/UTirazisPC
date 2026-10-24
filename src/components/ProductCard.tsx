@@ -1,5 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, Cpu, Eye, GitCompare, Heart, Plus, ShoppingCart, AlertTriangle } from 'lucide-react';
+import {
+  AlertTriangle,
+  Bell,
+  BellRing,
+  Check,
+  Cpu,
+  Eye,
+  GitCompare,
+  Heart,
+  Plus,
+  ShoppingCart,
+} from 'lucide-react';
 import { Locale, Product } from '../lib/commerce/types';
 import { formatCurrency, formatStockLabel, TRANSLATIONS } from '../lib/i18n/translations';
 
@@ -8,10 +19,12 @@ interface ProductCardProps {
   locale: Locale;
   isCompared: boolean;
   isWishlisted?: boolean;
+  priceAlertEmail?: string;
   onSelectProduct: (product: Product) => void;
   onAddToCart: (product: Product) => void;
   onToggleCompare: (product: Product) => void;
   onToggleWishlist?: (product: Product) => void;
+  onRequestPriceAlert?: (product: Product) => void;
   onUseInBuilder: (product: Product) => void;
 }
 
@@ -20,10 +33,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   locale,
   isCompared,
   isWishlisted = false,
+  priceAlertEmail,
   onSelectProduct,
   onAddToCart,
   onToggleCompare,
   onToggleWishlist,
+  onRequestPriceAlert,
   onUseInBuilder,
 }) => {
   const [imgError, setImgError] = useState(false);
@@ -245,6 +260,37 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               </button>
             )}
           </div>
+
+          {/* Notify Me of Price Drop Action */}
+          {onRequestPriceAlert && (
+            <button
+              type="button"
+              onClick={() => onRequestPriceAlert(product)}
+              data-testid={`price-drop-button-${product.slug}`}
+              data-alert-active={priceAlertEmail ? 'true' : 'false'}
+              aria-label={`${priceAlertEmail ? t.priceDropActiveButton : t.priceDropNotifyButton} - ${displayName}`}
+              title={priceAlertEmail ? `${t.priceDropActiveButton}: ${priceAlertEmail}` : t.priceDropNotifyButton}
+              className={`w-full py-1.5 px-3 rounded-lg border text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                priceAlertEmail
+                  ? 'bg-emerald-950/60 border-emerald-500/60 text-emerald-300 hover:bg-emerald-950/90'
+                  : 'bg-[#0b0f17] border-slate-800 hover:border-cyan-500/60 text-slate-300 hover:text-cyan-300'
+              }`}
+            >
+              {priceAlertEmail ? (
+                <>
+                  <BellRing className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span className="truncate">
+                    {t.priceDropActiveButton} ({priceAlertEmail})
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Bell className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                  <span>{t.priceDropNotifyButton}</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </article>

@@ -254,6 +254,71 @@
         "updatedBy",
         "updatedAt"
       ]
+    },
+    "PriceDropAlert": {
+      "title": "PriceDropAlert",
+      "description": "User subscription request to be notified by email when a hardware component drops in price",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the account owner",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "productSlug": {
+          "type": "string",
+          "description": "Slug of the monitored hardware product",
+          "minLength": 1,
+          "maxLength": 120,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "productName": {
+          "type": "string",
+          "description": "Display name of the monitored hardware product",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Email address to receive price drop notifications",
+          "minLength": 3,
+          "maxLength": 254
+        },
+        "currentPriceIrr": {
+          "type": "number",
+          "description": "Product price at the time the alert was created"
+        },
+        "status": {
+          "type": "string",
+          "description": "Subscription status of the price drop alert",
+          "enum": ["active", "triggered", "cancelled"],
+          "minLength": 1,
+          "maxLength": 24
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the alert request was created"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the alert request was last updated"
+        }
+      },
+      "required": [
+        "userId",
+        "productSlug",
+        "productName",
+        "email",
+        "currentPriceIrr",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
     }
   },
   "firestore": {
@@ -265,6 +330,10 @@
       "schema": { "$ref": "#/entities/UserPrivateInfo" },
       "description": "Split collection for isolated customer PII (email, phone, shippingAddress)"
     },
+    "/users/{userId}/priceDropAlerts/{alertId}": {
+      "schema": { "$ref": "#/entities/PriceDropAlert" },
+      "description": "Price drop email notification requests stored under the user's account"
+    },
     "/pcBuilds/{buildId}": {
       "schema": { "$ref": "#/entities/SavedPcBuild" },
       "description": "Customer saved PC Builder configurations"
@@ -275,3 +344,4 @@
     }
   }
 }
+

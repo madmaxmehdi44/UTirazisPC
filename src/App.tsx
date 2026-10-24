@@ -31,15 +31,21 @@ import {
 } from './lib/commerce/types';
 import { HARDWARE_PRODUCTS_SEED } from './lib/commerce/hardwareCatalogSeed';
 import {
+  buildPriceDropAlertId,
+  deletePriceDropAlertFromFirestore,
   googleSignIn,
   initAuth,
   logout,
+  PriceDropAlertDoc,
   SavedPcBuildDoc,
+  savePriceDropAlertToFirestore,
   subscribeToUserPcBuilds,
+  subscribeToUserPriceDropAlerts,
 } from './lib/firebase/client';
 import { formatCurrency, TRANSLATIONS } from './lib/i18n/translations';
 import { ProductCard } from './components/ProductCard';
 import { ProductDetailModal } from './components/ProductDetailModal';
+import { PriceDropAlertModal } from './components/PriceDropAlertModal';
 import { CartDrawerAndCheckout } from './components/CartDrawerAndCheckout';
 import { WishlistDrawer } from './components/WishlistDrawer';
 import { PcBuilderWorkbench } from './components/PcBuilderWorkbench';
@@ -219,9 +225,24 @@ export default function App() {
   const wishlistAnimTimerRef = useRef<number | null>(null);
   const cartTokenRef = useRef<string>('trz-session-client-1');
 
-  // Firebase Auth & Saved Builds State
+  // Firebase Auth, Saved Builds & Price Drop Alerts State
   const [user, setUser] = useState<User | null>(null);
   const [savedBuilds, setSavedBuilds] = useState<SavedPcBuildDoc[]>([]);
+  const [priceAlertModalProduct, setPriceAlertModalProduct] = useState<Product | null>(null);
+  const [priceDropAlerts, setPriceDropAlerts] = useState<Record<string, PriceDropAlertDoc>>(() => {
+    try {
+      const saved = localStorage.getItem('tirazis_price_drop_alerts');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          return parsed;
+        }
+      }
+    } catch {
+      // Ignore storage read errors
+    }
+    return {};
+  });
 
   useEffect(() => {
     try {
@@ -241,6 +262,14 @@ export default function App() {
       // Ignore storage write errors
     }
   }, [wishlistNotes]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('tirazis_price_drop_alerts', JSON.stringify(priceDropAlerts));
+    } catch {
+      // Ignore storage write errors
+    }
+  }, [priceDropAlerts]);
 
   const t = TRANSLATIONS[locale];
 
@@ -282,13 +311,46 @@ export default function App() {
   // Initialize Firebase Auth & Firestore subscription
   useEffect(() => {
     let unsubBuilds: (() => void) | null = null;
+    let unsubAlerts: (() => void) | null = null;
     const unsubAuth = initAuth(
       (authedUser) => {
         setUser(authedUser);
         if (unsubBuilds) unsubBuilds();
+        if (unsubAlerts) unsubAlerts();
         unsubBuilds = subscribeToUserPcBuilds(authedUser.uid, (builds) => {
           setSavedBuilds(builds);
         });
+        unsubAlerts = subscribeToUserPriceDropAlerts(authedUser.uid, (alerts) => {
+          setPriceDropAlerts((prev) => {
+            const next = { ...prev };
+            for (const item of alerts) {
+              if (item.status === 'active') {
+                next[item.productSlug] = item;
+              }
+            }
+            return next;
+          });
+        });
+
+        // Sync any pending account price drop alerts to Firestore under /users/{uid}/priceDropAlerts
+        try {
+          const rawLocal = localStorage.getItem('tirazis_price_drop_alerts');
+          if (rawLocal) {
+            const parsedLocal = JSON.parse(rawLocal) as Record<string, PriceDropAlertDoc>;
+            Object.values(parsedLocal).forEach((alertItem) => {
+              if (alertItem && alertItem.productSlug && alertItem.email) {
+                void savePriceDropAlertToFirestore({
+                  productSlug: alertItem.productSlug,
+                  productName: alertItem.productName,
+                  email: alertItem.email,
+                  currentPriceIrr: alertItem.currentPriceIrr,
+                }).catch(() => {});
+              }
+            });
+          }
+        } catch {
+          // Ignore sync read errors
+        }
       },
       () => {
         setUser(null);
@@ -297,11 +359,16 @@ export default function App() {
           unsubBuilds();
           unsubBuilds = null;
         }
+        if (unsubAlerts) {
+          unsubAlerts();
+          unsubAlerts = null;
+        }
       }
     );
     return () => {
       unsubAuth();
       if (unsubBuilds) unsubBuilds();
+      if (unsubAlerts) unsubAlerts();
     };
   }, []);
 
@@ -642,6 +709,83 @@ export default function App() {
     }
     setIsWishlistOpen(false);
     setIsCartOpen(true);
+  };
+
+  const handleSavePriceDropAlert = async (product: Product, email: string) => {
+    const sanitizedEmail = email.trim();
+    const fallbackDoc: PriceDropAlertDoc = {
+      id: buildPriceDropAlertId(product.slug),
+      userId: user?.uid || 'account_local',
+      productSlug: product.slug,
+      productName: locale === 'fa' ? product.nameFa || product.name : product.name,
+      email: sanitizedEmail,
+      currentPriceIrr: product.price || 0,
+      status: 'active',
+    };
+
+    if (user) {
+      try {
+        const savedDoc = await savePriceDropAlertToFirestore({
+          productSlug: product.slug,
+          productName: locale === 'fa' ? product.nameFa || product.name : product.name,
+          email: sanitizedEmail,
+          currentPriceIrr: product.price || 0,
+        });
+        setPriceDropAlerts((prev) => {
+          const next = { ...prev, [product.slug]: savedDoc };
+          try {
+            localStorage.setItem('tirazis_price_drop_alerts', JSON.stringify(next));
+          } catch {
+            // Ignore storage write errors
+          }
+          return next;
+        });
+      } catch {
+        // Fallback to local account cache if offline
+        setPriceDropAlerts((prev) => {
+          const next = { ...prev, [product.slug]: fallbackDoc };
+          try {
+            localStorage.setItem('tirazis_price_drop_alerts', JSON.stringify(next));
+          } catch {
+            // Ignore storage write errors
+          }
+          return next;
+        });
+      }
+    } else {
+      setPriceDropAlerts((prev) => {
+        const next = { ...prev, [product.slug]: fallbackDoc };
+        try {
+          localStorage.setItem('tirazis_price_drop_alerts', JSON.stringify(next));
+        } catch {
+          // Ignore storage write errors
+        }
+        return next;
+      });
+    }
+
+    showToast(t.priceDropSavedToast);
+  };
+
+  const handleRemovePriceDropAlert = async (product: Product) => {
+    if (user) {
+      try {
+        await deletePriceDropAlertFromFirestore(product.slug);
+      } catch {
+        // Ignore offline delete error
+      }
+    }
+    setPriceDropAlerts((prev) => {
+      const next = { ...prev };
+      delete next[product.slug];
+      try {
+        localStorage.setItem('tirazis_price_drop_alerts', JSON.stringify(next));
+      } catch {
+        // Ignore storage write errors
+      }
+      return next;
+    });
+    showToast(t.priceDropRemovedToast);
   };
 
   const handleUseInBuilder = (product: Product) => {
@@ -1171,10 +1315,12 @@ export default function App() {
                     locale={locale}
                     isCompared={comparedProducts.some((p) => p.slug === product.slug)}
                     isWishlisted={wishlistProducts.some((p) => p.slug === product.slug)}
+                    priceAlertEmail={priceDropAlerts[product.slug]?.email}
                     onSelectProduct={handleInspectProduct}
                     onAddToCart={(p) => handleAddToCart(p, 1)}
                     onToggleCompare={handleToggleCompare}
                     onToggleWishlist={handleToggleWishlist}
+                    onRequestPriceAlert={(p) => setPriceAlertModalProduct(p)}
                     onUseInBuilder={handleUseInBuilder}
                   />
                 ))}
@@ -1421,10 +1567,12 @@ export default function App() {
                     locale={locale}
                     isCompared={comparedProducts.some((p) => p.slug === product.slug)}
                     isWishlisted={wishlistProducts.some((p) => p.slug === product.slug)}
+                    priceAlertEmail={priceDropAlerts[product.slug]?.email}
                     onSelectProduct={handleInspectProduct}
                     onAddToCart={(p) => handleAddToCart(p, 1)}
                     onToggleCompare={handleToggleCompare}
                     onToggleWishlist={handleToggleWishlist}
+                    onRequestPriceAlert={(p) => setPriceAlertModalProduct(p)}
                     onUseInBuilder={handleUseInBuilder}
                   />
                 ))}
@@ -1623,6 +1771,24 @@ export default function App() {
             // Ignore URL history update errors
           }
           showToast(t.wishlistShareCopied);
+        }}
+      />
+      <PriceDropAlertModal
+        product={priceAlertModalProduct}
+        locale={locale}
+        user={user}
+        existingAlert={
+          priceAlertModalProduct ? priceDropAlerts[priceAlertModalProduct.slug] || null : null
+        }
+        onClose={() => setPriceAlertModalProduct(null)}
+        onSubmitAlert={handleSavePriceDropAlert}
+        onRemoveAlert={handleRemovePriceDropAlert}
+        onSignIn={async () => {
+          try {
+            await googleSignIn();
+          } catch {
+            // Ignore popup close
+          }
         }}
       />
     </div>

@@ -291,6 +291,128 @@ export async function deletePcBuildFromFirestore(buildId: string): Promise<void>
 }
 
 // ============================================================================
+// Price Drop Notification Requests (/users/{userId}/priceDropAlerts/{alertId})
+// ============================================================================
+
+export interface PriceDropAlertDoc {
+  id: string;
+  userId: string;
+  productSlug: string;
+  productName: string;
+  email: string;
+  currentPriceIrr: number;
+  status: 'active' | 'triggered' | 'cancelled';
+}
+
+export function buildPriceDropAlertId(productSlug: string): string {
+  const cleaned = productSlug.replace(/[^a-zA-Z0-9_\-]/g, '-').slice(0, 110);
+  return `alert_${cleaned || 'item'}`;
+}
+
+export async function savePriceDropAlertToFirestore(input: {
+  productSlug: string;
+  productName: string;
+  email: string;
+  currentPriceIrr: number;
+}): Promise<PriceDropAlertDoc> {
+  const user = auth.currentUser;
+  const sanitizedEmail = input.email.trim().slice(0, 254);
+  const sanitizedSlug = input.productSlug.replace(/[^a-zA-Z0-9_\-]/g, '-').slice(0, BLUEPRINT_CONSTRAINTS.MAX_SLUG_LENGTH);
+  const sanitizedName = (input.productName || sanitizedSlug).trim().slice(0, 200);
+  const sanitizedPrice = Math.max(0, Number(input.currentPriceIrr) || 0);
+  const alertId = buildPriceDropAlertId(sanitizedSlug);
+
+  if (!user) {
+    throw new Error('AUTH_REQUIRED_FOR_CLOUD_SYNC');
+  }
+
+  const uid = user.uid.slice(0, BLUEPRINT_CONSTRAINTS.MAX_ID_LENGTH);
+  const userProfilePath = `users/${uid}`;
+
+  // Ensure parent user profile document exists for Pillar 1 Master Gate relational check
+  try {
+    await setDoc(
+      doc(db, 'users', uid),
+      {
+        uid,
+        displayName: (user.displayName || user.email || 'Tirazis Customer').slice(0, 100),
+        preferredLocale: 'fa',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      },
+      { merge: false }
+    );
+  } catch {
+    // User profile already exists or offline mode active
+  }
+
+  const path = `${userProfilePath}/priceDropAlerts/${alertId}`;
+  const payload = {
+    userId: uid,
+    productSlug: sanitizedSlug,
+    productName: sanitizedName,
+    email: sanitizedEmail,
+    currentPriceIrr: sanitizedPrice,
+    status: 'active' as const,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+
+  try {
+    await setDoc(doc(db, 'users', uid, 'priceDropAlerts', alertId), payload);
+    return {
+      id: alertId,
+      userId: uid,
+      productSlug: sanitizedSlug,
+      productName: sanitizedName,
+      email: sanitizedEmail,
+      currentPriceIrr: sanitizedPrice,
+      status: 'active',
+    };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, path);
+  }
+}
+
+export function subscribeToUserPriceDropAlerts(
+  userId: string,
+  onUpdate: (alerts: PriceDropAlertDoc[]) => void
+) {
+  const path = `users/${userId}/priceDropAlerts`;
+  const q = query(
+    collection(db, 'users', userId, 'priceDropAlerts'),
+    where('userId', '==', userId)
+  );
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const items: PriceDropAlertDoc[] = snapshot.docs.map((d) => ({
+        id: d.id,
+        ...(d.data() as Omit<PriceDropAlertDoc, 'id'>),
+      }));
+      onUpdate(items);
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.LIST, path);
+    }
+  );
+}
+
+export async function deletePriceDropAlertFromFirestore(productSlug: string): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) return;
+  const uid = user.uid.slice(0, BLUEPRINT_CONSTRAINTS.MAX_ID_LENGTH);
+  const alertId = buildPriceDropAlertId(productSlug);
+  const path = `users/${uid}/priceDropAlerts/${alertId}`;
+  try {
+    await deleteDoc(doc(db, 'users', uid, 'priceDropAlerts', alertId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+
+// ============================================================================
 // Google Drive Workspace Integration (Client-Side Bearer Token)
 // ============================================================================
 

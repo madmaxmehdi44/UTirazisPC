@@ -60,6 +60,16 @@ export const TRANSLATIONS = {
     wishlistNoteLabel: 'یادداشت شخصی / یادآوری فنی',
     wishlistNotePlaceholder: 'افزودن یادداشت (مثلاً: بررسی سازگاری با کیس)...',
     wishlistNoteSaved: 'ذخیره در مرورگر',
+    priceDropNotifyButton: 'اطلاع از کاهش قیمت',
+    priceDropActiveButton: 'هشدار کاهش قیمت فعال',
+    priceDropModalTitle: 'ثبت درخواست اطلاع از کاهش قیمت',
+    priceDropModalDesc:
+      'آدرس ایمیل خود را وارد کنید تا درخواست هشدار کاهش قیمت این قطعه در حساب کاربری فایربیس شما ذخیره شود.',
+    priceDropEmailLabel: 'آدرس ایمیل دریافت اعلان',
+    priceDropSubmit: 'ثبت هشدار کاهش قیمت',
+    priceDropRemove: 'لغو هشدار قیمت',
+    priceDropSavedToast: 'درخواست اطلاع از کاهش قیمت در حساب کاربری ذخیره شد.',
+    priceDropRemovedToast: 'هشدار کاهش قیمت برای این قطعه لغو شد.',
     networkConstrained: 'حالت کم‌مصرف (اینترنت محدود — ۸ کالا در صفحه)',
     networkStandard: 'حالت استاندارد (۱۲ کالا در صفحه)',
     networkFast: 'حالت پرسرعت (۱۶ کالا در صفحه)',
@@ -102,9 +112,20 @@ export const TRANSLATIONS = {
     wishlistNoteLabel: 'Personal Note / Build Reminder',
     wishlistNotePlaceholder: 'Add a note (e.g., Check compatibility with case)...',
     wishlistNoteSaved: 'Saved locally',
+    priceDropNotifyButton: 'Notify me of price drop',
+    priceDropActiveButton: 'Price Drop Alert Active',
+    priceDropModalTitle: 'Notify Me of Price Drop',
+    priceDropModalDesc:
+      'Enter your email address to receive notifications when this component drops in price. Stored in Firebase under your account.',
+    priceDropEmailLabel: 'Notification Email Address',
+    priceDropSubmit: 'Save Price Drop Alert',
+    priceDropRemove: 'Cancel Price Alert',
+    priceDropSavedToast: 'Price drop notification request saved to your account.',
+    priceDropRemovedToast: 'Price drop notification removed.',
     networkConstrained: 'Low-Bandwidth Mode (8 items/page)',
     networkStandard: 'Standard Mode (12 items/page)',
     networkFast: 'Fast Link Mode (16 items/page)',
   },
 } as const;
+
 

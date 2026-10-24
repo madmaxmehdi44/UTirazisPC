@@ -62,6 +62,27 @@ service cloud.firestore {
         data.updatedAt is timestamp;
     }
 
+    function isValidPriceDropAlert(data) {
+      return data.keys().hasAll([
+          'userId', 'productSlug', 'productName', 'email',
+          'currentPriceIrr', 'status', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'userId', 'productSlug', 'productName', 'email',
+          'currentPriceIrr', 'status', 'createdAt', 'updatedAt'
+        ]) &&
+        data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 && data.userId.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.userId == request.auth.uid &&
+        data.productSlug is string && data.productSlug.size() >= 1 && data.productSlug.size() <= 120 && data.productSlug.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.productName is string && data.productName.size() >= 1 && data.productName.size() <= 200 &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 254 &&
+        data.currentPriceIrr is number && data.currentPriceIrr >= 0 &&
+        data.status is string && data.status.size() >= 1 && data.status.size() <= 24 &&
+        (data.status == 'active' || data.status == 'triggered' || data.status == 'cancelled') &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
     function isValidSavedPcBuild(data) {
       return data.keys().hasAll([
           'ownerId', 'title', 'cpuSlug', 'motherboardSlug', 'gpuSlug',
@@ -165,6 +186,32 @@ service cloud.firestore {
             incoming().diff(existing()).affectedKeys().hasOnly(['email', 'phone', 'shippingAddress', 'postalCode', 'updatedAt'])
           );
         allow delete: if isValidId(userId) && isValidId(docId) && (isOwner(userId) || isAdmin());
+      }
+
+      // 2b. User Price Drop Notification Requests (/users/{userId}/priceDropAlerts/{alertId})
+      match /priceDropAlerts/{alertId} {
+        allow get: if isValidId(userId) && isValidId(alertId) && (isOwner(userId) || isAdmin()) &&
+          exists(/databases/$(database)/documents/users/$(userId));
+        allow list: if isOwner(userId) && existing().userId == request.auth.uid;
+        allow create: if isOwner(userId) && isValidId(userId) && isValidId(alertId) &&
+          isValidPriceDropAlert(incoming()) &&
+          incoming().userId == userId &&
+          incoming().status == 'active' &&
+          incoming().createdAt == request.time &&
+          incoming().updatedAt == request.time &&
+          get(/databases/$(database)/documents/users/$(userId)).data.uid == request.auth.uid;
+        allow update: if isOwner(userId) && isValidId(userId) && isValidId(alertId) &&
+          isValidPriceDropAlert(incoming()) &&
+          existing().status != 'cancelled' &&
+          incoming().userId == existing().userId &&
+          incoming().productSlug == existing().productSlug &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time &&
+          get(/databases/$(database)/documents/users/$(userId)).data.uid == request.auth.uid && (
+            isAdmin() ||
+            incoming().diff(existing()).affectedKeys().hasOnly(['email', 'currentPriceIrr', 'status', 'updatedAt'])
+          );
+        allow delete: if isValidId(userId) && isValidId(alertId) && (isOwner(userId) || isAdmin());
       }
     }
 
