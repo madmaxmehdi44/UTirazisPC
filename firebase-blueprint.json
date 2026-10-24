@@ -1,0 +1,277 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Public user profile metadata for Tirazis Computer customers",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the user",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Display name of the customer",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "preferredLocale": {
+          "type": "string",
+          "description": "Preferred storefront language (fa or en)",
+          "enum": ["fa", "en"],
+          "minLength": 2,
+          "maxLength": 2
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of profile creation"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of profile update"
+        }
+      },
+      "required": ["uid", "displayName", "preferredLocale", "createdAt", "updatedAt"]
+    },
+    "UserPrivateInfo": {
+      "title": "UserPrivateInfo",
+      "description": "Isolated PII record for customer contact and shipping details",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Owner Firebase Auth UID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Customer email address",
+          "minLength": 3,
+          "maxLength": 254
+        },
+        "phone": {
+          "type": "string",
+          "description": "Customer contact phone number",
+          "minLength": 0,
+          "maxLength": 32
+        },
+        "shippingAddress": {
+          "type": "string",
+          "description": "Customer shipping address",
+          "minLength": 0,
+          "maxLength": 500
+        },
+        "postalCode": {
+          "type": "string",
+          "description": "Customer postal code",
+          "minLength": 0,
+          "maxLength": 24
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of update"
+        }
+      },
+      "required": ["uid", "email", "updatedAt"]
+    },
+    "SavedPcBuild": {
+      "title": "SavedPcBuild",
+      "description": "Saved custom PC Builder hardware configuration",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "UID of the user who created the PC build",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "description": "Name of the PC build configuration",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "cpuSlug": {
+          "type": "string",
+          "description": "Selected CPU product slug",
+          "minLength": 0,
+          "maxLength": 120
+        },
+        "motherboardSlug": {
+          "type": "string",
+          "description": "Selected motherboard product slug",
+          "minLength": 0,
+          "maxLength": 120
+        },
+        "gpuSlug": {
+          "type": "string",
+          "description": "Selected GPU product slug",
+          "minLength": 0,
+          "maxLength": 120
+        },
+        "ramSlug": {
+          "type": "string",
+          "description": "Selected RAM product slug",
+          "minLength": 0,
+          "maxLength": 120
+        },
+        "storageSlug": {
+          "type": "string",
+          "description": "Selected storage product slug",
+          "minLength": 0,
+          "maxLength": 120
+        },
+        "psuSlug": {
+          "type": "string",
+          "description": "Selected PSU product slug",
+          "minLength": 0,
+          "maxLength": 120
+        },
+        "caseSlug": {
+          "type": "string",
+          "description": "Selected PC case product slug",
+          "minLength": 0,
+          "maxLength": 120
+        },
+        "coolerSlug": {
+          "type": "string",
+          "description": "Selected CPU cooler product slug",
+          "minLength": 0,
+          "maxLength": 120
+        },
+        "estimatedWattage": {
+          "type": "number",
+          "description": "Estimated system power draw in Watts"
+        },
+        "compatibilityStatus": {
+          "type": "string",
+          "description": "Compatibility status verdict",
+          "enum": ["compatible", "warning", "incompatible", "unverified"],
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "totalPriceIrr": {
+          "type": "number",
+          "description": "Calculated total price of selected parts"
+        },
+        "driveFileId": {
+          "type": "string",
+          "description": "Optional exported Google Drive file ID",
+          "minLength": 0,
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when build was saved"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when build was last updated"
+        }
+      },
+      "required": [
+        "ownerId",
+        "title",
+        "cpuSlug",
+        "motherboardSlug",
+        "gpuSlug",
+        "ramSlug",
+        "storageSlug",
+        "psuSlug",
+        "caseSlug",
+        "coolerSlug",
+        "estimatedWattage",
+        "compatibilityStatus",
+        "totalPriceIrr",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AdminConfigRecord": {
+      "title": "AdminConfigRecord",
+      "description": "Storefront administration and provider configuration record",
+      "type": "object",
+      "properties": {
+        "activeProvider": {
+          "type": "string",
+          "description": "Active commerce provider identifier",
+          "enum": ["wordpress-woocommerce"],
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "catalogRevalidateSeconds": {
+          "type": "number",
+          "description": "Freshness window in seconds for public catalog cache"
+        },
+        "priceStockRevalidateSeconds": {
+          "type": "number",
+          "description": "Freshness window in seconds for price and stock revalidation"
+        },
+        "constrainedPageSize": {
+          "type": "number",
+          "description": "Default page size on slow/constrained Iranian connections"
+        },
+        "fastPageSize": {
+          "type": "number",
+          "description": "Default page size on fast connections"
+        },
+        "strictSocketCheck": {
+          "type": "boolean",
+          "description": "Enforce strict CPU/Motherboard socket matching in PC Builder"
+        },
+        "updatedBy": {
+          "type": "string",
+          "description": "UID of the administrator who updated the settings",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of configuration update"
+        }
+      },
+      "required": [
+        "activeProvider",
+        "catalogRevalidateSeconds",
+        "priceStockRevalidateSeconds",
+        "constrainedPageSize",
+        "fastPageSize",
+        "strictSocketCheck",
+        "updatedBy",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Public customer profile document without PII"
+    },
+    "/users/{userId}/private/{docId}": {
+      "schema": { "$ref": "#/entities/UserPrivateInfo" },
+      "description": "Split collection for isolated customer PII (email, phone, shippingAddress)"
+    },
+    "/pcBuilds/{buildId}": {
+      "schema": { "$ref": "#/entities/SavedPcBuild" },
+      "description": "Customer saved PC Builder configurations"
+    },
+    "/adminSettings/{configId}": {
+      "schema": { "$ref": "#/entities/AdminConfigRecord" },
+      "description": "Administrator-only storefront configuration documents"
+    }
+  }
+}

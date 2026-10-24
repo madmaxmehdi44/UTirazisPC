@@ -1,0 +1,6 @@
+{
+  "name": "Tirazis Computer — Headless Commerce & Hardware Workbench",
+  "description": "Bilingual Persian/English headless commerce storefront for Tirazis Computer powered by WordPress/WooCommerce, PC Builder compatibility engine, AI hardware assistant, and scientific biomolecular folding benchmark explorer.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

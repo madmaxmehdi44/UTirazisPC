@@ -1,0 +1,212 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pillar 0: Global Default-Deny Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Reusable Hardened Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isOwner(userId) {
+      return isVerifiedUser() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'madmaxmehdi44@gmail.com'
+      );
+    }
+
+    // Entity Blueprint Validators
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'preferredLocale', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'displayName', 'preferredLocale', 'createdAt', 'updatedAt']) &&
+        data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 && data.uid.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.uid == request.auth.uid &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100 &&
+        data.preferredLocale is string && data.preferredLocale.size() == 2 && (data.preferredLocale == 'fa' || data.preferredLocale == 'en') &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidUserPrivateInfo(data) {
+      return data.keys().hasAll(['uid', 'email', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'phone', 'shippingAddress', 'postalCode', 'updatedAt']) &&
+        data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 && data.uid.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.uid == request.auth.uid &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 254 &&
+        (!('phone' in data) || (data.phone is string && data.phone.size() <= 32)) &&
+        (!('shippingAddress' in data) || (data.shippingAddress is string && data.shippingAddress.size() <= 500)) &&
+        (!('postalCode' in data) || (data.postalCode is string && data.postalCode.size() <= 24)) &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidSavedPcBuild(data) {
+      return data.keys().hasAll([
+          'ownerId', 'title', 'cpuSlug', 'motherboardSlug', 'gpuSlug',
+          'ramSlug', 'storageSlug', 'psuSlug', 'caseSlug', 'coolerSlug',
+          'estimatedWattage', 'compatibilityStatus', 'totalPriceIrr',
+          'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'ownerId', 'title', 'cpuSlug', 'motherboardSlug', 'gpuSlug',
+          'ramSlug', 'storageSlug', 'psuSlug', 'caseSlug', 'coolerSlug',
+          'estimatedWattage', 'compatibilityStatus', 'totalPriceIrr',
+          'driveFileId', 'createdAt', 'updatedAt'
+        ]) &&
+        data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128 && data.ownerId.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.ownerId == request.auth.uid &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
+        data.cpuSlug is string && data.cpuSlug.size() <= 120 &&
+        data.motherboardSlug is string && data.motherboardSlug.size() <= 120 &&
+        data.gpuSlug is string && data.gpuSlug.size() <= 120 &&
+        data.ramSlug is string && data.ramSlug.size() <= 120 &&
+        data.storageSlug is string && data.storageSlug.size() <= 120 &&
+        data.psuSlug is string && data.psuSlug.size() <= 120 &&
+        data.caseSlug is string && data.caseSlug.size() <= 120 &&
+        data.coolerSlug is string && data.coolerSlug.size() <= 120 &&
+        data.estimatedWattage is number && data.estimatedWattage >= 0 && data.estimatedWattage <= 5000 &&
+        data.compatibilityStatus is string && data.compatibilityStatus.size() <= 32 &&
+        (data.compatibilityStatus == 'compatible' || data.compatibilityStatus == 'warning' || data.compatibilityStatus == 'incompatible' || data.compatibilityStatus == 'unverified') &&
+        data.totalPriceIrr is number && data.totalPriceIrr >= 0 &&
+        (!('driveFileId' in data) || (data.driveFileId is string && data.driveFileId.size() <= 128)) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidAdminConfig(data) {
+      return data.keys().hasAll([
+          'activeProvider', 'catalogRevalidateSeconds', 'priceStockRevalidateSeconds',
+          'constrainedPageSize', 'fastPageSize', 'strictSocketCheck',
+          'updatedBy', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'activeProvider', 'catalogRevalidateSeconds', 'priceStockRevalidateSeconds',
+          'constrainedPageSize', 'fastPageSize', 'strictSocketCheck',
+          'updatedBy', 'updatedAt'
+        ]) &&
+        data.activeProvider is string && data.activeProvider.size() <= 64 && data.activeProvider == 'wordpress-woocommerce' &&
+        data.catalogRevalidateSeconds is number && data.catalogRevalidateSeconds >= 5 && data.catalogRevalidateSeconds <= 86400 &&
+        data.priceStockRevalidateSeconds is number && data.priceStockRevalidateSeconds >= 5 && data.priceStockRevalidateSeconds <= 3600 &&
+        data.constrainedPageSize is number && data.constrainedPageSize >= 4 && data.constrainedPageSize <= 16 &&
+        data.fastPageSize is number && data.fastPageSize >= 8 && data.fastPageSize <= 32 &&
+        data.strictSocketCheck is bool &&
+        data.updatedBy is string && data.updatedBy.size() >= 1 && data.updatedBy.size() <= 128 && data.updatedBy.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.updatedBy == request.auth.uid &&
+        data.updatedAt is timestamp;
+    }
+
+    // Admins lookup collection (read-only from client, managed server-side)
+    match /admins/{adminId} {
+      allow get: if isValidId(adminId) && isOwner(adminId);
+      allow list, create, update, delete: if false;
+    }
+
+    // Connection test path for getDocFromServer boot validation
+    match /test/{docId} {
+      allow get: if isValidId(docId);
+      allow list, create, update, delete: if false;
+    }
+
+    // 1. User Profiles (/users/{userId})
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if false;
+      allow create: if isOwner(userId) && isValidId(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isOwner(userId) && isValidId(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'preferredLocale', 'updatedAt'])
+        );
+      allow delete: if isValidId(userId) && isAdmin();
+
+      // 2. Isolated Customer PII Subcollection (/users/{userId}/private/{docId})
+      match /private/{docId} {
+        allow get: if isValidId(userId) && isValidId(docId) && (isOwner(userId) || isAdmin()) &&
+          exists(/databases/$(database)/documents/users/$(userId));
+        allow list: if false;
+        allow create: if isOwner(userId) && isValidId(userId) && isValidId(docId) &&
+          isValidUserPrivateInfo(incoming()) &&
+          incoming().updatedAt == request.time &&
+          get(/databases/$(database)/documents/users/$(userId)).data.uid == request.auth.uid;
+        allow update: if isOwner(userId) && isValidId(userId) && isValidId(docId) &&
+          isValidUserPrivateInfo(incoming()) &&
+          incoming().uid == existing().uid &&
+          incoming().updatedAt == request.time &&
+          get(/databases/$(database)/documents/users/$(userId)).data.uid == request.auth.uid && (
+            isAdmin() ||
+            incoming().diff(existing()).affectedKeys().hasOnly(['email', 'phone', 'shippingAddress', 'postalCode', 'updatedAt'])
+          );
+        allow delete: if isValidId(userId) && isValidId(docId) && (isOwner(userId) || isAdmin());
+      }
+    }
+
+    // 3. Saved PC Builds (/pcBuilds/{buildId})
+    match /pcBuilds/{buildId} {
+      allow get: if isValidId(buildId) && isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && existing().ownerId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(buildId) &&
+        isValidSavedPcBuild(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser() && isValidId(buildId) &&
+        isValidSavedPcBuild(incoming()) &&
+        existing().ownerId == request.auth.uid &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'title', 'cpuSlug', 'motherboardSlug', 'gpuSlug',
+            'ramSlug', 'storageSlug', 'psuSlug', 'caseSlug', 'coolerSlug',
+            'estimatedWattage', 'compatibilityStatus', 'totalPriceIrr',
+            'driveFileId', 'updatedAt'
+          ])
+        );
+      allow delete: if isValidId(buildId) && isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin());
+    }
+
+    // 4. Custom Administration Settings (/adminSettings/{configId})
+    match /adminSettings/{configId} {
+      allow get: if isValidId(configId) && isAdmin();
+      allow list: if false;
+      allow create: if isValidId(configId) && isValidAdminConfig(incoming()) &&
+        incoming().updatedAt == request.time && isAdmin();
+      allow update: if isValidId(configId) && isValidAdminConfig(incoming()) &&
+        incoming().updatedAt == request.time && isAdmin() &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'activeProvider', 'catalogRevalidateSeconds', 'priceStockRevalidateSeconds',
+          'constrainedPageSize', 'fastPageSize', 'strictSocketCheck',
+          'updatedBy', 'updatedAt'
+        ]);
+      allow delete: if false;
+    }
+  }
+}
